@@ -15,8 +15,8 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    // nf-fa-chalkboard — an actual board with writing on it.
-    text: "\u{EDE5}"
+    // nf-md-presentation — whiteboard on a stand with a chart on it.
+    text: "\u{F0428}"
     tooltipText: "OmaBoard"
     onPressed: function(b) {
       if (b === Qt.LeftButton)
