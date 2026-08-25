@@ -1,0 +1,4 @@
+singleton Theme 1.0 Theme.qml
+Toolbar 1.0 Toolbar.qml
+Toast 1.0 Toast.qml
+HelpOverlay 1.0 HelpOverlay.qml

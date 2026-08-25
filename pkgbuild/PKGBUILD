@@ -1,0 +1,37 @@
+# Maintainer: Henri Strassberger
+#
+# NOTE: the repo launcher bin/omaboard hardcodes $HOME/projects/omarchy/omaboard,
+# which is wrong once installed system-wide. The packaged launcher therefore
+# differs: after install we rewrite it to exec `qs -p /usr/share/omaboard`.
+
+pkgname=omaboard
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Dead-simple whiteboard that lives in your Omarchy theme'
+arch=('any')
+url='https://github.com/omacom-io/omaboard'
+license=('MIT')
+depends=('quickshell')
+makedepends=('git')
+source=("$pkgname::git+https://github.com/omacom-io/omaboard.git")
+sha256sums=('SKIP')
+
+package() {
+  cd "$srcdir/$pkgname"
+
+  # Launcher: install the repo script, then repoint it at the shared data dir.
+  /usr/bin/install -Dm755 bin/omaboard "$pkgdir/usr/bin/omaboard"
+  /usr/bin/sed -i 's|\$HOME/projects/omarchy/omaboard|/usr/share/omaboard|' \
+    "$pkgdir/usr/bin/omaboard"
+
+  # Flat QML layout: shell.qml, components, qmldir and the JS library all
+  # share one directory so same-dir type resolution keeps working installed.
+  /usr/bin/install -dm755 "$pkgdir/usr/share/omaboard"
+  /usr/bin/install -m644 qmldir ExcalidrawIO.js *.qml \
+    "$pkgdir/usr/share/omaboard/"
+
+  /usr/bin/install -Dm644 assets/omaboard.desktop \
+    "$pkgdir/usr/share/applications/omaboard.desktop"
+  /usr/bin/install -Dm644 LICENSE \
+    "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

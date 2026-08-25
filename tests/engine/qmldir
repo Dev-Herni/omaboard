@@ -1,0 +1,3 @@
+singleton Theme 1.0 Theme.qml
+SceneModel 1.0 SceneModel.qml
+BoardCanvas 1.0 BoardCanvas.qml
