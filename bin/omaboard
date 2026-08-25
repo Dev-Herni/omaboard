@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+exec qs -p "$HOME/projects/omarchy/omaboard" "$@"
