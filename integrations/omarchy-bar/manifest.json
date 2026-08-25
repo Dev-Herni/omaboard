@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "oxhenri.omaboard",
+  "name": "OmaBoard",
+  "version": "1.0.0",
+  "author": "oxhenri",
+  "description": "Open OmaBoard (whiteboard) from the bar",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "OmaBoardLauncher.qml"
+  },
+  "barWidget": {
+    "displayName": "OmaBoard",
+    "description": "Click to open OmaBoard",
+    "category": "Applications",
+    "allowMultiple": false,
+    "defaultSection": "left"
+  }
+}
