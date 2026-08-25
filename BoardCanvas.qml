@@ -121,12 +121,9 @@ Item {
     onShowGridChanged: repaint()
     Component.onCompleted: repaint()
 
-    Connections {
-        target: root.model
-        function onSceneChanged() {
-            canvasItem.requestPaint();
-        }
-    }
+    // NOTE: model.sceneChanged → repaint is wired in shell.qml (modelLoader.onLoaded)
+    // because a static Connections here evaluates against the not-yet-loaded
+    // Loader target and spams a "no signal matches" warning at startup.
 
     Connections {
         target: Theme
