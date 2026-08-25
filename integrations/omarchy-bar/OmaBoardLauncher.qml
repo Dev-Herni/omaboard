@@ -15,8 +15,8 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    // nf-md-vector_square — selection frame with corner handles, whiteboard motif.
-    text: "\u{F0466}"
+    // nf-md-draw (pen nib drawing a squiggle) — scratch-pad motif.
+    text: "\u{F0F49}"
     tooltipText: "OmaBoard"
     onPressed: function(b) {
       if (b === Qt.LeftButton)
