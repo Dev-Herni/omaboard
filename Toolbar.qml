@@ -53,11 +53,6 @@ Item {
                     tip: "New · Ctrl+N"
                     actionName: "new"
                 }
-                IconButton {
-                    glyph: "❏"
-                    tip: "Open · Ctrl+O"
-                    actionName: "open"
-                }
             }
 
             Divider {}
@@ -146,11 +141,6 @@ Item {
                     tip: "Fit · ="
                     actionName: "fit"
                 }
-                IconButton {
-                    glyph: "?"
-                    tip: "Shortcuts · ?"
-                    actionName: "help"
-                }
             }
 
             Divider {}
@@ -169,10 +159,11 @@ Item {
                 IconButton {
                     glyph: "⌂"
                     tip: root.boardTitle.length > 0
-                         ? "Vault-save · Ctrl+Shift+S — " + root.boardTitle
-                         : "Vault-save · Ctrl+Shift+S"
+                         ? "Save to Obsidian · Ctrl+Shift+S — " + root.boardTitle
+                         : "Save to Obsidian · Ctrl+Shift+S"
                     actionName: "vault"
                     outlined: true
+                    obsidianMark: true
                 }
             }
         }
@@ -242,6 +233,7 @@ Item {
         property bool outlined: false  // accent border (vault)
         property bool pulse: false     // dirty-save pulse ring
         property bool showCheckDot: false
+        property bool obsidianMark: false // draw the Obsidian gem instead of glyph
 
         width: 34
         height: 34
@@ -261,10 +253,43 @@ Item {
 
         Text {
             anchors.centerIn: parent
+            visible: !ib.obsidianMark
             text: ib.glyph
             color: ib.isActive ? Theme.background : Theme.foreground
             font.family: root.fontFamily
             font.pixelSize: 16
+        }
+
+        // Obsidian brand gem (fixed purples — logos don't follow themes)
+        Canvas {
+            anchors.centerIn: parent
+            visible: ib.obsidianMark
+            width: 20; height: 20
+            antialiasing: true
+
+            onPaint: {
+                var ctx = getContext("2d");
+                ctx.reset();
+
+                function poly(pts, fill) {
+                    ctx.beginPath();
+                    ctx.moveTo(pts[0][0], pts[0][1]);
+                    for (var i = 1; i < pts.length; i++)
+                        ctx.lineTo(pts[i][0], pts[i][1]);
+                    ctx.closePath();
+                    ctx.fillStyle = fill;
+                    ctx.fill();
+                }
+
+                // crystal silhouette
+                poly([[10,1],[16,6.5],[14.5,14],[9,19],[5,12.5],[6.5,4.5]], "#8b5cf6");
+                // dark left facet
+                poly([[10,1],[6.5,4.5],[5,12.5],[9,19],[9.6,10]], "#6d28d9");
+                // light top-right facet
+                poly([[10,1],[16,6.5],[12.5,9]], "#c4b5fd");
+                // mid facet seam
+                poly([[9.6,10],[14.5,14],[9,19]], "#7c3aed");
+            }
         }
 
         Rectangle { // grid checked-state underline dot

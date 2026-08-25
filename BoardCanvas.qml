@@ -532,6 +532,24 @@ Item {
         }
     }
 
+    function _pressText(wp) {
+        // Clicking with the text tool: commit any open editor first, then
+        // either re-edit a hit text element or start a fresh one at wp.
+        if (textEditor.visible)
+            commitTextEditor();
+        var m = root.model;
+        if (!m)
+            return;
+        var hit = m.hitTest(wp.x, wp.y);
+        if (hit && hit.type === "text") {
+            m.selectOnly(hit.id);
+            openTextEditor(hit, hit.x, hit.y);
+        } else {
+            _editingEl = null;
+            openTextEditor(null, wp.x, wp.y);
+        }
+    }
+
     function _applyMove(wp) {
         var m = root.model;
         var dx = wp.x - _pressWorld.x;

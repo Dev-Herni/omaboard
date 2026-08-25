@@ -114,7 +114,7 @@ Rectangle {
         anchors.centerIn: parent
         width: Math.min(parent.width - 96, 560)
         height: Math.min(parent.height - 96, 540)
-        radius: 16
+        radius: 0
         color: root.withAlpha(Theme.darkerBackground, 0.98)
         border.color: Theme.muted
         border.width: 1
@@ -224,7 +224,7 @@ Rectangle {
 
                                 visible: !entry.modelData.isHeader
                                 anchors.fill: parent
-                                radius: 8
+                                radius: 0
                                 color: rowArea.containsMouse ? Theme.lighterBackground : "transparent"
 
                                 Behavior on color { ColorAnimation { duration: 100 } }

@@ -430,6 +430,16 @@ ShellRoot {
         }
 
         Loader {
+            id: bottomLeftLoader
+
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: 16
+            anchors.bottomMargin: 14
+            source: "BottomLeftBar.qml"
+        }
+
+        Loader {
             id: pickerLoader
 
             anchors.fill: parent
@@ -508,6 +518,17 @@ ShellRoot {
                     app.toggleHelp();
                     break;
                 }
+            }
+        }
+
+        Connections {
+            target: bottomLeftLoader.item
+
+            function onOpenRequested() {
+                app.openPicker();
+            }
+            function onHelpRequested() {
+                app.toggleHelp();
             }
         }
 
