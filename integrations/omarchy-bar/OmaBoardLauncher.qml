@@ -15,8 +15,8 @@ BarWidget {
     id: button
     anchors.fill: parent
     bar: root.bar
-    // nf-md-draw (pen nib drawing a squiggle) — scratch-pad motif.
-    text: "\u{F0F49}"
+    // nf-fa-chalkboard — an actual board with writing on it.
+    text: "\u{EDE5}"
     tooltipText: "OmaBoard"
     onPressed: function(b) {
       if (b === Qt.LeftButton)
