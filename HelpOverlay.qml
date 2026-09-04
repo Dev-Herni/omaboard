@@ -19,14 +19,18 @@ Rectangle {
         { key: "7",           desc: "Draw tool" },
         { key: "8",           desc: "Text tool" },
         { key: "9",           desc: "Eraser tool" },
+        { key: "S",           desc: "Sticky note tool" },
         { key: "Ctrl+N",      desc: "New board" },
         { key: "Ctrl+O",      desc: "Open picker" },
         { key: "Ctrl+S",      desc: "Save in place" }
     ]
     readonly property var rightColumn: [
         { key: "Ctrl+Shift+S", desc: "Vault save" },
+        { key: "Ctrl+E",       desc: "Export PNG" },
+        { key: "Ctrl+Shift+E", desc: "Export SVG" },
+        { key: "Ctrl+V",       desc: "Paste image" },
         { key: "Ctrl+Z",       desc: "Undo" },
-        { key: "Ctrl+Y",       desc: "Redo" },
+        { key: "Ctrl+Y",       desc: "Redo (or Ctrl+Shift+Z)" },
         { key: "Del",          desc: "Delete selection" },
         { key: "Ctrl+D",       desc: "Duplicate" },
         { key: "Ctrl+]",       desc: "Z-order forward" },
@@ -57,7 +61,7 @@ Rectangle {
         anchors.centerIn: parent
         width: Math.max(headerRow.implicitWidth, columns.implicitWidth) + 64
         height: cardCol.implicitHeight + 48
-        radius: 16
+        radius: 0
         color: root.withAlpha(Theme.darkerBackground, 0.97)
         border.color: Theme.muted
         border.width: 1
@@ -83,11 +87,11 @@ Rectangle {
 
                 Text {
                     anchors.baseline: titleText.baseline
-                    text: "?"
-                    color: Theme.accent
+                    text: "󰘥"
+                    color: Theme.foreground
                     font.family: root.fontFamily
                     font.pixelSize: 18
-                    font.bold: true
+                    renderType: Text.NativeRendering
                 }
             }
 
@@ -139,7 +143,7 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width: Math.max(keyText.implicitWidth + 16, 72)
             height: 20
-            radius: 5
+            radius: 0
             color: root.withAlpha(Theme.lighterBackground, 1)
             border.color: Theme.muted
             border.width: 1

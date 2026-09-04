@@ -1,4 +1,5 @@
-//@pragma ShellId org.omarchy.omaboard
+//@ pragma ShellId org.omarchy.omaboard
+//@ pragma AppId org.omarchy.omaboard
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -32,7 +33,7 @@ ShellRoot {
     readonly property var toolbar: toolbarLoader.item
     readonly property var pickerItem: pickerLoader.item
 
-    readonly property bool typing: canvas !== null && canvas._editingEl !== null
+    readonly property bool typing: canvas !== null && canvas.editingText
     readonly property bool overlayOpen: (pickerItem !== null && pickerItem.visible) || showHelp
     readonly property string windowTitle: (dirty ? "\u25CF " : "") + boardTitle + " \u2014 OmaBoard"
 
@@ -193,8 +194,7 @@ ShellRoot {
         return IO.serialize(els, {
                                 title: boardTitle,
                                 createdISO: createdISO,
-                                modifiedISO: nowISO,
-                                viewBackgroundColor: Theme.background.toString()
+                                modifiedISO: nowISO
                             });
     }
 
@@ -227,6 +227,29 @@ ShellRoot {
         });
     }
 
+    function exportPng() {
+        var path = localDir + "/" + slugify(boardTitle) + "-" + timestamp() + ".png";
+        if (canvas) {
+            canvas.exportPng(path);
+            toastMsg("Exported PNG", "ok");
+        }
+    }
+
+    function exportSvg() {
+        var path = localDir + "/" + slugify(boardTitle) + "-" + timestamp() + ".svg";
+        if (canvas) {
+            canvas.exportSvg(path);
+            toastMsg("Exported SVG", "ok");
+        }
+    }
+
+    function pasteImage() {
+        var tmpPath = cacheDir + "/clipboard.png";
+        pasteProc.exec(["sh", "-c",
+            'xclip -selection clipboard -t image/png -o > "$1" 2>/dev/null && echo OK || echo FAIL',
+            "sh", tmpPath]);
+    }
+
     function loadFromMd(md, path) {
         var res = IO.parse(md);
         if (!res) {
@@ -236,6 +259,7 @@ ShellRoot {
         if (model)
             model.loadFromJson({ elements: res.elements });
         boardTitle = (typeof res.title === "string" && res.title.length > 0) ? res.title : "Untitled board";
+        createdISO = (typeof res.createdISO === "string") ? res.createdISO : "";
         if (typeof path === "string" && path.length > 0)
             currentPath = path;
         dirty = false;
@@ -260,7 +284,7 @@ ShellRoot {
     }
 
     function removeDraft() {
-        rmProc.exec(["rm", "-f", draftPath]);
+        rmProc.exec(["sh", "-c", 'rm -f "$1"', "sh", draftPath]);
     }
 
     function ensureDirs() {
@@ -345,7 +369,7 @@ ShellRoot {
                 return;
             var mt = parseInt(statOut.text.trim());
             var now = Date.now() / 1000;
-            if (!isNaN(mt) && (now - mt) <= 60)
+            if (!isNaN(mt) && (now - mt) <= 7 * 24 * 3600)
                 tryRestoreDraft();
         }
     }
@@ -372,6 +396,55 @@ ShellRoot {
         onLoadFailed: function(error) {
             pendingLoadKind = "";
             toastMsg("Could not read file", "warn");
+        }
+    }
+
+    Process {
+        id: pasteProc
+
+        stdout: StdioCollector {}
+        stderr: StdioCollector {}
+
+        onExited: function(exitCode, exitStatus) {
+            var out = pasteOut.text().trim();
+            if (out === "OK") {
+                pasteImageView.reload();
+            } else {
+                toastMsg("No image in clipboard", "warn");
+            }
+        }
+    }
+
+    StdioCollector { id: pasteOut }
+
+    FileView {
+        id: pasteImageView
+
+        printErrors: false
+        watchChanges: false
+
+        onLoaded: {
+            var b64 = pasteImageView.text().trim();
+            if (b64.length === 0) {
+                toastMsg("Clipboard image is empty", "warn");
+                return;
+            }
+            if (model) {
+                var sz = 300;
+                model.pushUndo();
+                var el = model.addElement({
+                    type: "image", x: -sz / 2, y: -sz / 2, width: sz, height: sz,
+                    imageData: b64, strokeColor: "transparent", backgroundColor: "transparent",
+                    strokeWidth: 0
+                });
+                model.selectOnly(el.id);
+                dirty = true;
+                toastMsg("Image pasted", "ok");
+            }
+        }
+
+        onLoadFailed: function(error) {
+            toastMsg("Failed to read clipboard image", "warn");
         }
     }
 
@@ -437,6 +510,10 @@ ShellRoot {
             anchors.leftMargin: 16
             anchors.bottomMargin: 14
             source: "BottomLeftBar.qml"
+            onLoaded: {
+                item.dirty = Qt.binding(function() { return app.dirty; });
+                item.boardTitle = Qt.binding(function() { return app.boardTitle; });
+            }
         }
 
         Loader {
@@ -445,6 +522,7 @@ ShellRoot {
             anchors.fill: parent
             source: "BoardPicker.qml"
             onLoaded: {
+                item.visible = false;
                 item.vaultDir = Qt.binding(function() { return app.vaultDir; });
                 item.localDir = Qt.binding(function() { return app.localDir; });
             }
@@ -471,6 +549,48 @@ ShellRoot {
             }
             function onRequestTool(tool) {
                 app.setTool(tool);
+            }
+            function onMenuAction(name, element) {
+                switch (name) {
+                case "duplicate":
+                    app.duplicateSelection();
+                    break;
+                case "delete":
+                    app.deleteSelection();
+                    break;
+                case "bring":
+                    app.bringForwardSel();
+                    break;
+                case "send":
+                    app.sendBackwardSel();
+                    break;
+                case "select":
+                    if (app.model && element)
+                        app.model.selectOnly(element.id);
+                    break;
+                case "edittext":
+                    if (app.canvas && element)
+                        app.canvas.openTextEditor(element, element.x, element.y);
+                    break;
+                case "new":
+                    app.newBoard();
+                    break;
+                case "open":
+                    app.openPicker();
+                    break;
+                case "save":
+                    app.saveInPlace();
+                    break;
+                case "vault":
+                    app.saveToVault();
+                    break;
+                case "grid":
+                    app.toggleGrid();
+                    break;
+                case "help":
+                    app.toggleHelp();
+                    break;
+                }
             }
         }
 
@@ -517,6 +637,15 @@ ShellRoot {
                 case "help":
                     app.toggleHelp();
                     break;
+                case "exportPng":
+                    app.exportPng();
+                    break;
+                case "exportSvg":
+                    app.exportSvg();
+                    break;
+                case "paste":
+                    app.pasteImage();
+                    break;
                 }
             }
         }
@@ -524,11 +653,14 @@ ShellRoot {
         Connections {
             target: bottomLeftLoader.item
 
-            function onOpenRequested() {
-                app.openPicker();
-            }
             function onHelpRequested() {
                 app.toggleHelp();
+            }
+            function onSaveRequested() {
+                app.saveInPlace();
+            }
+            function onVaultRequested() {
+                app.saveToVault();
             }
         }
 
@@ -603,6 +735,11 @@ ShellRoot {
             enabled: win.gateAll
             onActivated: app.setTool("eraser")
         }
+        Shortcut {
+            sequence: "S"
+            enabled: win.gateAll
+            onActivated: app.setTool("sticky")
+        }
 
         Shortcut {
             sequence: "Ctrl+S"
@@ -626,12 +763,33 @@ ShellRoot {
         }
 
         Shortcut {
+            sequence: "Ctrl+E"
+            enabled: win.gateTyping
+            onActivated: app.exportPng()
+        }
+        Shortcut {
+            sequence: "Ctrl+Shift+E"
+            enabled: win.gateTyping
+            onActivated: app.exportSvg()
+        }
+        Shortcut {
+            sequence: "Ctrl+V"
+            enabled: win.gateTyping
+            onActivated: app.pasteImage()
+        }
+
+        Shortcut {
             sequence: "Ctrl+Z"
             enabled: win.gateAll
             onActivated: app.undo()
         }
         Shortcut {
             sequence: "Ctrl+Y"
+            enabled: win.gateAll
+            onActivated: app.redo()
+        }
+        Shortcut {
+            sequence: "Ctrl+Shift+Z"
             enabled: win.gateAll
             onActivated: app.redo()
         }
@@ -746,6 +904,61 @@ ShellRoot {
     // ------------------------------------------------------------------
     // Startup sequence
     // ------------------------------------------------------------------
+    function focusWindow() {
+        win.visible = true;
+        if (typeof win.raise === "function")
+            win.raise();
+        if (typeof win.requestActivate === "function")
+            win.requestActivate();
+        Quickshell.execDetached(["hyprctl", "dispatch", "focuswindow", "title:OmaBoard"]);
+    }
+
+    function applyLaunchAction() {
+        var action = Quickshell.env("OMABOARD_ACTION") || "";
+        var path = Quickshell.env("OMABOARD_PATH") || "";
+        if (action === "open" && path.length > 0) {
+            loadFromPath(path);
+            return true;
+        }
+        if (action === "new") {
+            removeDraft();
+            return true;
+        }
+        if (action === "picker") {
+            openPicker();
+            return true;
+        }
+        return false;
+    }
+
+    IpcHandler {
+        target: "omaboard"
+
+        function ping(): string {
+            return "ok";
+        }
+
+        function focus(): void {
+            app.focusWindow();
+        }
+
+        function newBoard(): void {
+            app.focusWindow();
+            app.newBoard();
+        }
+
+        function picker(): void {
+            app.focusWindow();
+            app.openPicker();
+        }
+
+        function openFile(path: string): void {
+            app.focusWindow();
+            if (path && path.length > 0 && path.substring(path.length - 3) === ".md")
+                app.loadFromPath(path);
+        }
+    }
+
     Timer {
         id: startupTimer
 
@@ -755,7 +968,8 @@ ShellRoot {
         triggeredOnStart: false
         onTriggered: {
             ensureDirs();
-            checkDraft();
+            if (!app.applyLaunchAction())
+                checkDraft();
         }
     }
 
@@ -769,5 +983,4 @@ ShellRoot {
         onTriggered: writeDraftNow()
     }
 
-    // ==== INTEGRATION-HARNESS-SLOT ====
 }

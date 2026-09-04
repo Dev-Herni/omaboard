@@ -72,7 +72,7 @@ Item {
 
         width: Math.max(150, textLabel.implicitWidth + 40)
         height: 36
-        radius: 18
+        radius: 0
         color: withAlpha(Theme.darkerBackground, 0.97)
         border.color: Theme.muted
         border.width: 1
@@ -104,7 +104,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: 3
             height: parent.height - 14
-            radius: 2
+            radius: 0
             color: pill.barColor
         }
 

@@ -1,2 +1,112 @@
 #!/usr/bin/env bash
-exec qs -p "$HOME/projects/omarchy/omaboard" "$@"
+# Focus a running OmaBoard if one exists; otherwise launch it.
+# Extra args: --new | --picker | --open PATH | --status
+set -euo pipefail
+
+# Resolve the config root from this script's own location, following symlinks
+# (e.g. ~/.local/bin/omaboard); override with OMABOARD_ROOT.
+_self="$(readlink -f -- "${BASH_SOURCE[0]}" 2>/dev/null)" || _self=""
+[[ -n "$_self" ]] || _self="${BASH_SOURCE[0]}"
+ROOT="${OMABOARD_ROOT:-$(cd "$(dirname "$_self")/.." && pwd)}"
+
+running() {
+  qs ipc -p "$ROOT" call omaboard ping >/dev/null 2>&1
+}
+
+call() {
+  qs ipc -p "$ROOT" call omaboard "$@"
+}
+
+window_mapped() {
+  local clients
+  clients="$(hyprctl clients -j 2>/dev/null || true)"
+  [[ -z "$clients" ]] && return 1
+  if command -v jq >/dev/null 2>&1; then
+    jq -e '[.[] | select((.app_id == "org.omarchy.omaboard")
+                        or (.class == "org.omarchy.omaboard")
+                        or (.class == "OmaBoard")
+                        or ((.title // "") | test("OmaBoard")))] | length > 0' \
+      <<<"$clients" >/dev/null 2>&1
+  else
+    grep -q 'OmaBoard' <<<"$clients"
+  fi
+}
+
+# Kill omaboard qs instances by pid, matched against this exact config path.
+# Never pkill -f: that matches any shell that happens to mention the config path.
+kill_instance() {
+  local want="$ROOT/shell.qml" pids=""
+  if command -v jq >/dev/null 2>&1; then
+    pids="$(qs list --all --json 2>/dev/null |
+      jq -r --arg want "$want" '.[] | select(.config_path == $want) | .pid' 2>/dev/null || true)"
+  else
+    pids="$(qs list --all 2>/dev/null | awk -v want="$want" '
+      /Process ID:/ { pid = $3 }
+      index($0, "Config path: " want) { if (pid != "") print pid }
+    ')"
+  fi
+  while read -r pid; do
+    case "$pid" in
+      ''|*[!0-9]*) continue ;;
+    esac
+    kill "$pid" 2>/dev/null || true
+  done <<<"$pids"
+  sleep 0.2
+}
+
+action="focus"
+path=""
+case "${1:-}" in
+  --new|new)
+    action="new"
+    ;;
+  --picker|picker|--open-picker)
+    action="picker"
+    ;;
+  --open|open)
+    action="open"
+    path="${2:-}"
+    if [[ -z "$path" ]]; then
+      echo "omaboard: --open requires a path" >&2
+      exit 2
+    fi
+    ;;
+  --status|status)
+    if running; then echo running; else echo stopped; fi
+    exit 0
+    ;;
+  --help|-h)
+    echo "omaboard [--new|--picker|--open PATH|--status]"
+    exit 0
+    ;;
+  "")
+    action="focus"
+    ;;
+  *)
+    if [[ -f "$1" ]]; then
+      action="open"
+      path="$1"
+    else
+      echo "omaboard: unknown argument: $1" >&2
+      exit 2
+    fi
+    ;;
+esac
+
+if running && window_mapped; then
+  case "$action" in
+    new) call newBoard ;;
+    picker) call picker ;;
+    open) call openFile "$path" ;;
+    *) call focus ;;
+  esac
+  exit 0
+fi
+
+if running; then
+  kill_instance
+fi
+
+export OMABOARD_ACTION="$action"
+export OMABOARD_PATH="$path"
+exec qs -p "$ROOT"

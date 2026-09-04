@@ -14,10 +14,20 @@ Item {
     property real panY: 0
     property bool showGrid: true
     property bool spaceHeld: false
+    readonly property bool editingText: textEditor.visible && textEditor.activeFocus
 
     signal boardModified()
     signal elementTextCommitted(var el)
     signal requestTool(string tool)
+    signal menuAction(string name, var element)
+
+    readonly property string fontFamily: "JetBrainsMono Nerd Font"
+    property var _imageCache: ({})
+    property int imageLoadCount: 0
+
+    function withAlpha(c, a) {
+        return Qt.rgba(c.r, c.g, c.b, a);
+    }
 
     property string _gesture: "none"
     property var _ghostEl: null
@@ -34,6 +44,7 @@ Item {
     property bool _eraseAny: false
     property var _editingEl: null
     property var _editWorld: null
+    property var _ctxHitEl: null
 
     readonly property int _gridSpacing: 64
     readonly property int _handleSize: 8
@@ -115,9 +126,127 @@ Item {
         canvasItem.requestPaint();
     }
 
-    onZoomChanged: repaint()
-    onPanXChanged: repaint()
-    onPanYChanged: repaint()
+    function preloadImages() {
+        var els = root.model ? root.model.elements : [];
+        var toLoad = 0;
+        for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            if (el.type === "image" && el.imageData && el.imageData.length > 0 && !_imageCache[el.id]) {
+                toLoad++;
+                var img = Qt.createQmlObject('import QtQuick; Image { visible: false }', root);
+                img.source = "data:image/png;base64," + el.imageData;
+                (function(id, image, count) {
+                    image.statusChanged.connect(function() {
+                        if (image.status === Image.Ready || image.status === Image.Error) {
+                            if (image.status === Image.Ready)
+                                _imageCache[id] = image;
+                            imageLoadCount++;
+                        }
+                    });
+                })(el.id, img, toLoad);
+            }
+        }
+    }
+
+    function drawStickyNote(ctx, el, sx, sy, sw, sh) {
+        ctx.save();
+        ctx.shadowColor = "rgba(0,0,0,0.15)";
+        ctx.shadowBlur = 8 * zoom;
+        ctx.shadowOffsetY = 2 * zoom;
+        ctx.fillStyle = el.backgroundColor || "#fef3c7";
+        ctx.beginPath();
+        var r = 4 * zoom;
+        ctx.moveTo(sx + r, sy);
+        ctx.lineTo(sx + sw - r, sy);
+        ctx.quadraticCurveTo(sx + sw, sy, sx + sw, sy + r);
+        ctx.lineTo(sx + sw, sy + sh - r);
+        ctx.quadraticCurveTo(sx + sw, sy + sh, sx + sw - r, sy + sh);
+        ctx.lineTo(sx + r, sy + sh);
+        ctx.quadraticCurveTo(sx, sy + sh, sx, sy + sh - r);
+        ctx.lineTo(sx, sy + r);
+        ctx.quadraticCurveTo(sx, sy, sx + r, sy);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        ctx.strokeStyle = "rgba(0,0,0,0.08)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sx + r, sy);
+        ctx.lineTo(sx + sw - r, sy);
+        ctx.quadraticCurveTo(sx + sw, sy, sx + sw, sy + r);
+        ctx.lineTo(sx + sw, sy + sh - r);
+        ctx.quadraticCurveTo(sx + sw, sy + sh, sx + sw - r, sy + sh);
+        ctx.lineTo(sx + r, sy + sh);
+        ctx.quadraticCurveTo(sx, sy + sh, sx, sy + sh - r);
+        ctx.lineTo(sx, sy + r);
+        ctx.quadraticCurveTo(sx, sy, sx + r, sy);
+        ctx.closePath();
+        ctx.stroke();
+        var fs = Math.max(1, Math.round((el.fontSize || 18) * zoom));
+        var lh = typeof el.lineHeight === "number" ? el.lineHeight : 1.3;
+        var pad = 10 * zoom;
+        ctx.fillStyle = el.strokeColor || "#1e1e1e";
+        ctx.font = fs + "px sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        var lines = String(el.text || "").split("\n");
+        for (var li = 0; li < lines.length; li++)
+            ctx.fillText(lines[li], sx + pad, sy + pad + li * fs * lh);
+    }
+
+    function drawImageData(ctx, el, sx, sy, sw, sh) {
+        var img = _imageCache[el.id];
+        if (img && img.status === Image.Ready) {
+            ctx.drawImage(img, sx, sy, sw, sh);
+        } else {
+            ctx.fillStyle = Theme.lighterBackground;
+            ctx.fillRect(sx, sy, sw, sh);
+            ctx.strokeStyle = Theme.muted;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(sx, sy, sw, sh);
+            ctx.fillStyle = Theme.darkForeground;
+            ctx.font = Math.max(10, Math.round(12 * zoom)) + "px sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("Image", sx + sw / 2, sy + sh / 2);
+            if (img === undefined && el.imageData && el.imageData.length > 0) {
+                var newImg = Qt.createQmlObject('import QtQuick; Image { visible: false }', root);
+                newImg.source = "data:image/png;base64," + el.imageData;
+                newImg.statusChanged.connect(function() {
+                    if (newImg.status === Image.Ready) {
+                        _imageCache[el.id] = newImg;
+                        imageLoadCount++;
+                    }
+                });
+            }
+        }
+    }
+
+    function _drawSketchyLine(ctx, pts, sx, sy) {
+        if (pts.length < 2) return;
+        ctx.beginPath();
+        ctx.moveTo(sx + pts[0][0] * zoom, sy + pts[0][1] * zoom);
+        for (var i = 1; i < pts.length; i++) {
+            var px = sx + pts[i][0] * zoom;
+            var py = sy + pts[i][1] * zoom;
+            var pp = sx + pts[i - 1][0] * zoom;
+            var sp = sy + pts[i - 1][1] * zoom;
+            var mx = (pp + px) / 2;
+            var my = (sp + py) / 2;
+            var dx = px - pp;
+            var dy = py - sp;
+            var len = Math.sqrt(dx * dx + dy * dy);
+            var j = Math.min(len * 0.12, 3 * zoom);
+            var nx = -dy / (len || 1);
+            var ny = dx / (len || 1);
+            ctx.quadraticCurveTo(mx + nx * j, my + ny * j, px, py);
+        }
+        ctx.stroke();
+    }
+
+    onZoomChanged: { repaint(); _reanchorTextEditor(); }
+    onPanXChanged: { repaint(); _reanchorTextEditor(); }
+    onPanYChanged: { repaint(); _reanchorTextEditor(); }
     onShowGridChanged: repaint()
     Component.onCompleted: repaint()
 
@@ -129,6 +258,20 @@ Item {
         target: Theme
         function onThemeChanged() {
             canvasItem.requestPaint();
+        }
+    }
+
+    Connections {
+        target: root
+        function onImageLoadCountChanged() {
+            canvasItem.requestPaint();
+        }
+    }
+
+    Connections {
+        target: root.model
+        function onSceneChanged() {
+            root.preloadImages();
         }
     }
 
@@ -192,6 +335,7 @@ Item {
         var sx = el.x * zoom + panX;
         var sy = el.y * zoom + panY;
         var bg = el.backgroundColor || "transparent";
+        var isSketchy = (typeof el.roughness === "number" ? el.roughness : 0) > 0;
 
         switch (el.type) {
         case "rectangle": {
@@ -202,7 +346,27 @@ Item {
                 ctx.fillStyle = bg;
                 ctx.fillRect(rx, ry, rw, rh);
             }
-            ctx.strokeRect(rx, ry, rw, rh);
+            if (isSketchy) {
+                _drawSketchyLine(ctx, [[0, 0], [rw, 0], [rw, rh], [0, rh], [0, 0]], rx, ry);
+            } else {
+                ctx.strokeRect(rx, ry, rw, rh);
+            }
+            break;
+        }
+        case "sticky": {
+            var sw2 = Math.max(Math.abs(el.width * zoom), 1);
+            var sh2 = Math.max(Math.abs(el.height * zoom), 1);
+            var ssx = Math.min(sx, sx + el.width * zoom);
+            var ssy = Math.min(sy, sy + el.height * zoom);
+            drawStickyNote(ctx, el, ssx, ssy, sw2, sh2);
+            break;
+        }
+        case "image": {
+            var iw = Math.max(Math.abs(el.width * zoom), 1);
+            var ih = Math.max(Math.abs(el.height * zoom), 1);
+            var isx = Math.min(sx, sx + el.width * zoom);
+            var isy = Math.min(sy, sy + el.height * zoom);
+            drawImageData(ctx, el, isx, isy, iw, ih);
             break;
         }
         case "ellipse": {
@@ -223,17 +387,32 @@ Item {
             var dw = el.width * zoom, dh = el.height * zoom;
             var left = Math.min(sx, sx + dw), top = Math.min(sy, sy + dh);
             var dwd = Math.abs(dw), dhd = Math.abs(dh);
-            ctx.beginPath();
-            ctx.moveTo(left + dwd / 2, top);
-            ctx.lineTo(left + dwd, top + dhd / 2);
-            ctx.lineTo(left + dwd / 2, top + dhd);
-            ctx.lineTo(left, top + dhd / 2);
-            ctx.closePath();
-            if (bg !== "transparent") {
-                ctx.fillStyle = bg;
-                ctx.fill();
+            if (isSketchy) {
+                var diaPts = [[dwd / 2, 0], [dwd, dhd / 2], [dwd / 2, dhd], [0, dhd / 2], [dwd / 2, 0]];
+                if (bg !== "transparent") {
+                    ctx.fillStyle = bg;
+                    ctx.beginPath();
+                    ctx.moveTo(left + dwd / 2, top);
+                    ctx.lineTo(left + dwd, top + dhd / 2);
+                    ctx.lineTo(left + dwd / 2, top + dhd);
+                    ctx.lineTo(left, top + dhd / 2);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                _drawSketchyLine(ctx, diaPts, left, top);
+            } else {
+                ctx.beginPath();
+                ctx.moveTo(left + dwd / 2, top);
+                ctx.lineTo(left + dwd, top + dhd / 2);
+                ctx.lineTo(left + dwd / 2, top + dhd);
+                ctx.lineTo(left, top + dhd / 2);
+                ctx.closePath();
+                if (bg !== "transparent") {
+                    ctx.fillStyle = bg;
+                    ctx.fill();
+                }
+                ctx.stroke();
             }
-            ctx.stroke();
             break;
         }
         case "line":
@@ -241,15 +420,35 @@ Item {
         case "arrow": {
             var pts = el.points;
             if (pts && pts.length > 1) {
-                ctx.beginPath();
-                ctx.moveTo(sx + pts[0][0] * zoom, sy + pts[0][1] * zoom);
-                for (var i = 1; i < pts.length; i++)
-                    ctx.lineTo(sx + pts[i][0] * zoom, sy + pts[i][1] * zoom);
-                ctx.stroke();
+                if (isSketchy) {
+                    _drawSketchyLine(ctx, pts, sx, sy);
+                } else {
+                    ctx.beginPath();
+                    ctx.moveTo(sx + pts[0][0] * zoom, sy + pts[0][1] * zoom);
+                    for (var i = 1; i < pts.length; i++)
+                        ctx.lineTo(sx + pts[i][0] * zoom, sy + pts[i][1] * zoom);
+                    ctx.stroke();
+                }
                 if (el.type === "arrow")
                     drawArrowHead(ctx,
                                   sx + pts[pts.length - 2][0] * zoom, sy + pts[pts.length - 2][1] * zoom,
                                   sx + pts[pts.length - 1][0] * zoom, sy + pts[pts.length - 1][1] * zoom);
+                if (el.type === "arrow" && typeof el.label === "string" && el.label.length > 0) {
+                    var mid = Math.floor(pts.length / 2);
+                    var lx, ly;
+                    if (pts.length % 2 === 0) {
+                        lx = sx + (pts[mid - 1][0] + pts[mid][0]) / 2 * zoom;
+                        ly = sy + (pts[mid - 1][1] + pts[mid][1]) / 2 * zoom;
+                    } else {
+                        lx = sx + pts[mid][0] * zoom;
+                        ly = sy + pts[mid][1] * zoom;
+                    }
+                    var lfs = Math.max(8, Math.round(12 * zoom));
+                    ctx.font = lfs + "px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "bottom";
+                    ctx.fillText(el.label, lx, ly - 4);
+                }
             } else if (pts && pts.length === 1) {
                 ctx.beginPath();
                 ctx.arc(sx + pts[0][0] * zoom, sy + pts[0][1] * zoom, ctx.lineWidth / 2, 0, Math.PI * 2);
@@ -283,6 +482,66 @@ Item {
         ctx.moveTo(toX, toY);
         ctx.lineTo(toX - len * Math.cos(ang + 0.4), toY - len * Math.sin(ang + 0.4));
         ctx.stroke();
+    }
+
+    function exportPng(savePath) {
+        var dataUrl = canvasItem.toDataURL("image/png");
+        var base64 = dataUrl.replace(/^data:image\/png;base64,/, "");
+        var proc = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} stderr: StdioCollector {} }', root);
+        proc.exec(["sh", "-c", 'echo "$1" | base64 -d > "$2"', "sh", base64, savePath]);
+        proc.exited.connect(function(code) {
+            proc.destroy();
+        });
+    }
+
+    function exportSvg(savePath) {
+        var b = contentBounds();
+        if (!b) return;
+        var pad = 20;
+        var vw = b.width + pad * 2, vh = b.height + pad * 2;
+        var vx = b.x - pad, vy = b.y - pad;
+        var els = root.model ? root.model.elements : [];
+        var svgParts = [];
+        svgParts.push('<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + vx + ' ' + vy + ' ' + vw + ' ' + vh + '" width="' + vw + '" height="' + vh + '">');
+        for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            if (el.isDeleted) continue;
+            var op = (typeof el.opacity === "number" ? el.opacity : 100) / 100;
+            var sc = el.strokeColor || "#1e1e1e";
+            var sw = typeof el.strokeWidth === "number" ? el.strokeWidth : 2;
+            var bg = el.backgroundColor || "transparent";
+            if (el.type === "rectangle" || el.type === "sticky") {
+                var fill = el.type === "sticky" ? (bg !== "transparent" ? bg : "#fef3c7") : bg;
+                svgParts.push('<rect x="' + el.x + '" y="' + el.y + '" width="' + el.width + '" height="' + el.height + '" fill="' + fill + '" stroke="' + sc + '" stroke-width="' + sw + '" opacity="' + op + '" rx="4"/>');
+            } else if (el.type === "ellipse") {
+                svgParts.push('<ellipse cx="' + (el.x + el.width / 2) + '" cy="' + (el.y + el.height / 2) + '" rx="' + Math.abs(el.width / 2) + '" ry="' + Math.abs(el.height / 2) + '" fill="' + bg + '" stroke="' + sc + '" stroke-width="' + sw + '" opacity="' + op + '"/>');
+            } else if (el.type === "diamond") {
+                var dx2 = el.width, dy2 = el.height;
+                svgParts.push('<polygon points="' + (el.x + dx2 / 2) + ',' + el.y + ' ' + (el.x + dx2) + ',' + (el.y + dy2 / 2) + ' ' + (el.x + dx2 / 2) + ',' + (el.y + dy2) + ' ' + el.x + ',' + (el.y + dy2 / 2) + '" fill="' + bg + '" stroke="' + sc + '" stroke-width="' + sw + '" opacity="' + op + '"/>');
+            } else if (el.type === "line" || el.type === "arrow" || el.type === "draw") {
+                var pts = el.points;
+                if (pts && pts.length > 1) {
+                    var d = "M" + (el.x + pts[0][0]) + "," + (el.y + pts[0][1]);
+                    for (var j = 1; j < pts.length; j++)
+                        d += " L" + (el.x + pts[j][0]) + "," + (el.y + pts[j][1]);
+                    svgParts.push('<path d="' + d + '" fill="none" stroke="' + sc + '" stroke-width="' + sw + '" stroke-linecap="round" stroke-linejoin="round" opacity="' + op + '"/>');
+                }
+            } else if (el.type === "text") {
+                var fs2 = typeof el.fontSize === "number" ? el.fontSize : 20;
+                var lines2 = String(el.text || "").split("\n");
+                for (var k = 0; k < lines2.length; k++)
+                    svgParts.push('<text x="' + el.x + '" y="' + (el.y + fs2 * (k + 1)) + '" fill="' + sc + '" font-size="' + fs2 + '" font-family="sans-serif" opacity="' + op + '">' + lines2[k].replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</text>');
+            } else if (el.type === "image" && el.imageData) {
+                svgParts.push('<image x="' + el.x + '" y="' + el.y + '" width="' + el.width + '" height="' + el.height + '" href="data:image/png;base64,' + el.imageData + '" opacity="' + op + '"/>');
+            }
+        }
+        svgParts.push('</svg>');
+        var svg = svgParts.join("\n");
+        var proc = Qt.createQmlObject('import Quickshell.Io; Process { stdout: StdioCollector {} stderr: StdioCollector {} }', root);
+        proc.exec(["sh", "-c", 'cat > "$1"', "sh", savePath]);
+        proc.write(svg);
+        proc.stdinEnabled = false;
+        proc.exited.connect(function(code) { proc.destroy(); });
     }
 
     function paintSelection(ctx) {
@@ -343,7 +602,7 @@ Item {
         id: input
 
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+        acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
         hoverEnabled: true
         cursorShape: root._gesture === "pan" ? Qt.ClosedHandCursor
                      : root.spaceHeld ? Qt.OpenHandCursor
@@ -359,6 +618,23 @@ Item {
             }
             if (mouse.button === Qt.MiddleButton || root.spaceHeld) {
                 root._startPan(mouse);
+                return;
+            }
+            if (mouse.button === Qt.RightButton) {
+                if (root._gesture !== "none" || root.editingText)
+                    return;
+                var wp = root.worldFromScreen(mouse.x, mouse.y);
+                var hit = m.hitTest(wp.x, wp.y);
+                if (hit) {
+                    if (mouse.modifiers & Qt.ShiftModifier)
+                        m.toggleSelect(hit.id);
+                    else if (m.selectedIds.indexOf(hit.id) < 0)
+                        m.selectOnly(hit.id);
+                    root._ctxHitEl = hit;
+                } else {
+                    root._ctxHitEl = null;
+                }
+                ctxMenu.openAt(mouse.x, mouse.y);
                 return;
             }
             if (mouse.button !== Qt.LeftButton)
@@ -412,6 +688,9 @@ Item {
                 break;
             case "text":
                 root._pressText(wp);
+                break;
+            case "sticky":
+                root._pressSticky(wp);
                 break;
             }
             root.repaint();
@@ -471,6 +750,17 @@ Item {
         }
 
         onCanceled: function(mouse) {
+            switch (root._gesture) {
+            case "erase":
+                if (root._eraseAny)
+                    root.boardModified();
+                break;
+            case "move":
+            case "resize":
+                if (root._mutatedThisGesture)
+                    root.boardModified();
+                break;
+            }
             root._gesture = "none";
             root._ghostEl = null;
             root.repaint();
@@ -482,7 +772,7 @@ Item {
                 return;
             var wp = root.worldFromScreen(mouse.x, mouse.y);
             var hit = m.hitTest(wp.x, wp.y);
-            if (hit && hit.type === "text") {
+            if (hit && (hit.type === "text" || hit.type === "sticky")) {
                 root._gesture = "none";
                 root._ghostEl = null;
                 root.openTextEditor(hit, hit.x, hit.y);
@@ -548,6 +838,26 @@ Item {
             _editingEl = null;
             openTextEditor(null, wp.x, wp.y);
         }
+    }
+
+    function _pressSticky(wp) {
+        if (textEditor.visible)
+            commitTextEditor();
+        var m = root.model;
+        if (!m)
+            return;
+        var sw = 180, sh = 150;
+        m.pushUndo();
+        var el = m.addElement({
+            type: "sticky", x: wp.x - sw / 2, y: wp.y - sh / 2,
+            width: sw, height: sh,
+            backgroundColor: root.fillColor.a > 0 ? root.fillColor.toString() : "#fef3c7",
+            strokeColor: root.strokeColor.toString(), strokeWidth: 0
+        });
+        m.selectOnly(el.id);
+        boardModified();
+        openTextEditor(el, el.x, el.y);
+        requestTool("select");
     }
 
     function _applyMove(wp) {
@@ -720,6 +1030,14 @@ Item {
         requestTool("select");
     }
 
+    function _reanchorTextEditor() {
+        if (!textEditor.visible || !_editWorld)
+            return;
+        var sp = screenFromWorld(_editWorld.x, _editWorld.y);
+        textEditor.x = sp.x;
+        textEditor.y = sp.y;
+    }
+
     function openTextEditor(existingEl, wx, wy) {
         _editingEl = existingEl;
         _editWorld = { x: wx, y: wy };
@@ -750,6 +1068,10 @@ Item {
                 var up = m.getElement(ed.id);
                 boardModified();
                 elementTextCommitted(up);
+            } else if (txt.length === 0 && (ed.type === "text" || ed.type === "sticky")) {
+                m.pushUndo();
+                m.removeElements([ed.id]);
+                boardModified();
             }
         } else if (txt.length > 0 && m && at) {
             m.pushUndo();
@@ -792,6 +1114,216 @@ Item {
         onActiveFocusChanged: {
             if (!activeFocus && visible)
                 root.commitTextEditor();
+        }
+    }
+
+    ContextMenu {
+        id: ctxMenu
+    }
+
+    component ContextMenu: Popup {
+        id: men
+
+        x: 0
+        y: 0
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        implicitWidth: Math.max(col.implicitWidth + 12, 190)
+        implicitHeight: col.implicitHeight + 12
+        modal: true
+
+        property var hitEl: root._ctxHitEl
+
+        function openAt(sx, sy) {
+            men.x = sx;
+            men.y = sy;
+            men.open();
+        }
+
+        background: Rectangle {
+            radius: 0
+            color: root.withAlpha(Theme.darkerBackground, 0.97)
+            border.color: Theme.muted
+            border.width: 1
+        }
+
+        contentItem: Column {
+            id: col
+            spacing: 2
+
+            MenuRow {
+                text: "Duplicate"
+                shortcut: "Ctrl+D"
+                visible: men.hitEl !== null
+                onPicked: {
+                    men.close();
+                    root.menuAction("duplicate", men.hitEl);
+                }
+            }
+            MenuRow {
+                text: "Delete"
+                shortcut: "Del"
+                visible: men.hitEl !== null
+                onPicked: {
+                    men.close();
+                    root.menuAction("delete", men.hitEl);
+                }
+            }
+            MenuRow {
+                text: "Bring forward"
+                shortcut: "Ctrl+]"
+                visible: men.hitEl !== null
+                onPicked: {
+                    men.close();
+                    root.menuAction("bring", men.hitEl);
+                }
+            }
+            MenuRow {
+                text: "Send backward"
+                shortcut: "Ctrl+["
+                visible: men.hitEl !== null
+                onPicked: {
+                    men.close();
+                    root.menuAction("send", men.hitEl);
+                }
+            }
+            MenuRow {
+                text: "Select"
+                visible: men.hitEl !== null
+                onPicked: {
+                    men.close();
+                    root.menuAction("select", men.hitEl);
+                }
+            }
+            MenuRow {
+                text: "Edit text"
+                visible: men.hitEl !== null && (men.hitEl.type === "text" || men.hitEl.type === "sticky")
+                onPicked: {
+                    men.close();
+                    root.menuAction("edittext", men.hitEl);
+                }
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                radius: 0
+                color: Theme.muted
+                opacity: 0.75
+                visible: men.hitEl !== null
+            }
+
+            MenuRow {
+                text: "New board"
+                shortcut: "Ctrl+N"
+                visible: men.hitEl === null
+                onPicked: {
+                    men.close();
+                    root.menuAction("new", null);
+                }
+            }
+            MenuRow {
+                text: "Open board"
+                shortcut: "Ctrl+O"
+                visible: men.hitEl === null
+                onPicked: {
+                    men.close();
+                    root.menuAction("open", null);
+                }
+            }
+            MenuRow {
+                text: "Save"
+                shortcut: "Ctrl+S"
+                visible: men.hitEl === null
+                onPicked: {
+                    men.close();
+                    root.menuAction("save", null);
+                }
+            }
+            MenuRow {
+                text: "Save to Obsidian"
+                shortcut: "Ctrl+Shift+S"
+                visible: men.hitEl === null
+                onPicked: {
+                    men.close();
+                    root.menuAction("vault", null);
+                }
+            }
+            MenuRow {
+                text: "Grid"
+                shortcut: "G"
+                visible: men.hitEl === null
+                onPicked: {
+                    men.close();
+                    root.menuAction("grid", null);
+                }
+            }
+            MenuRow {
+                text: "Help"
+                shortcut: "?"
+                visible: men.hitEl === null
+                onPicked: {
+                    men.close();
+                    root.menuAction("help", null);
+                }
+            }
+        }
+
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 110; easing.type: Easing.OutQuad }
+        }
+        exit: Transition {
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 90; easing.type: Easing.OutQuad }
+        }
+    }
+
+    component MenuRow: Item {
+        id: mi
+
+        property string text: ""
+        property string shortcut: ""
+
+        signal picked()
+
+        implicitWidth: rowText.implicitWidth + shText.implicitWidth + 30
+        height: 28
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 0
+            color: area.containsMouse && mi.visible ? Theme.lighterBackground : "transparent"
+
+            Behavior on color { ColorAnimation { duration: 100 } }
+
+            MouseArea {
+                id: area
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mi.picked()
+            }
+        }
+
+        Text {
+            id: rowText
+            anchors.left: parent.left
+            anchors.leftMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            text: mi.text
+            color: Theme.foreground
+            font.family: root.fontFamily
+            font.pixelSize: 12
+        }
+
+        Text {
+            id: shText
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            text: mi.shortcut
+            color: Theme.darkForeground
+            font.family: root.fontFamily
+            font.pixelSize: 11
         }
     }
 }

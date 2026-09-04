@@ -18,17 +18,25 @@ Every whiteboard app fights your desktop. OmaBoard doesn't:
 Clone to the expected spot and symlink the launcher:
 
 ```sh
-git clone https://github.com/omacom-io/omaboard ~/projects/omarchy/omaboard
-ln -sf ~/projects/omarchy/omaboard/bin/omaboard ~/.local/bin/
+git clone https://github.com/omacom-io/omaboard ~/Projects/Omarchy/omaboard
+ln -sf ~/Projects/Omarchy/omaboard/bin/omaboard ~/.local/bin/
 ```
 
 Requires [Quickshell](https://quickshell.outfoxxed.me) 0.3.0 or newer (`quickshell-git` or `quickshell`) and a Hyprland/Wayland session. That's it — no build step.
 
 ## Usage
 
-Run `omaboard`. Draw. Hit `Ctrl+S` now and then.
+Run `omaboard`. Draw. Hit `Ctrl+S` now and then. A second launch focuses the
+open window instead of starting another copy.
 
 Tools (also pickable with keys `1..9`): **select**, **rectangle**, **ellipse**, **diamond**, **arrow**, **line**, **draw**, **text**, **eraser**. Drag with space/middle mouse to pan, scroll to zoom.
+
+```sh
+omaboard              # focus or launch
+omaboard --new        # blank board
+omaboard --picker     # open-board overlay
+omaboard --open PATH  # load a saved .md
+```
 
 ### Shortcuts
 
@@ -39,7 +47,7 @@ Tools (also pickable with keys `1..9`): **select**, **rectangle**, **ellipse**, 
 | `Ctrl+Shift+S` | vault-save         |
 | `Ctrl+O`     | open picker          |
 | `Ctrl+N`     | new                  |
-| `Ctrl+Z` / `Y` | undo / redo        |
+| `Ctrl+Z` / `Y` / `Ctrl+Shift+Z` | undo / redo |
 | `Del`        | delete               |
 | `Ctrl+D`     | duplicate            |
 | `Ctrl+]`     | z-forward            |
@@ -50,7 +58,11 @@ Tools (also pickable with keys `1..9`): **select**, **rectangle**, **ellipse**, 
 | `?`          | help                 |
 | `Esc`        | deselect/tool-reset  |
 
-A draft autosaves to `~/.cache/omaboard/draft.md` every 30 seconds and is offered back on next launch.
+A draft autosaves to `~/.cache/omaboard/draft.md` every 30 seconds and is restored on the next launch if it is less than a week old.
+
+The Omarchy bar widget (board + ink glyph) lives in `integrations/omarchy-bar`.
+Left-click lists recents, middle-click starts a new board, right-click focuses
+the window. See that folder's README to install it.
 
 ## Files
 

@@ -3,6 +3,7 @@ Type=Application
 Name=OmaBoard
 Comment=A dead-simple whiteboard that lives in your theme
 Exec=omaboard
+Icon=omaboard
 Terminal=false
 Categories=Graphics;Office;
 Keywords=whiteboard;draw;excalidraw;obsidian;

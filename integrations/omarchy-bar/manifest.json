@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "oxhenri.omaboard",
   "name": "OmaBoard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "oxhenri",
-  "description": "Open OmaBoard (whiteboard) from the bar",
+  "description": "Whiteboard on the bar — recents, new board, and a live window",
   "kinds": [
     "bar-widget"
   ],
@@ -13,9 +13,9 @@
   },
   "barWidget": {
     "displayName": "OmaBoard",
-    "description": "Click to open OmaBoard",
+    "description": "Click for recents, middle-click new board",
     "category": "Applications",
     "allowMultiple": false,
-    "defaultSection": "left"
+    "defaultSection": "center"
   }
 }

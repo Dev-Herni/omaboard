@@ -1,8 +1,9 @@
 # Maintainer: Henri Strassberger
 #
-# NOTE: the repo launcher bin/omaboard hardcodes $HOME/projects/omarchy/omaboard,
-# which is wrong once installed system-wide. The packaged launcher therefore
-# differs: after install we rewrite it to exec `qs -p /usr/share/omaboard`.
+# NOTE: the repo launcher bin/omaboard resolves its config root from its own
+# location, which does not hold once installed system-wide (script in /usr/bin,
+# config in /usr/share). The packaged launcher therefore repoints ROOT at
+# /usr/share/omaboard after install.
 
 pkgname=omaboard
 pkgver=0.1.0
@@ -21,7 +22,7 @@ package() {
 
   # Launcher: install the repo script, then repoint it at the shared data dir.
   /usr/bin/install -Dm755 bin/omaboard "$pkgdir/usr/bin/omaboard"
-  /usr/bin/sed -i 's|\$HOME/projects/omarchy/omaboard|/usr/share/omaboard|' \
+  /usr/bin/sed -i 's|^ROOT=.*|ROOT="${OMABOARD_ROOT:-/usr/share/omaboard}"|' \
     "$pkgdir/usr/bin/omaboard"
 
   # Flat QML layout: shell.qml, components, qmldir and the JS library all
@@ -32,6 +33,12 @@ package() {
 
   /usr/bin/install -Dm644 assets/omaboard.desktop \
     "$pkgdir/usr/share/applications/omaboard.desktop"
+  /usr/bin/install -Dm644 assets/omaboard.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/omaboard.svg"
+  for s in 16 24 32 48 64 128 256; do
+    /usr/bin/install -Dm644 "assets/icons/omaboard-${s}.png" \
+      "$pkgdir/usr/share/icons/hicolor/${s}x${s}/apps/omaboard.png"
+  done
   /usr/bin/install -Dm644 LICENSE \
     "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }

@@ -35,7 +35,7 @@ Item {
 
         width: bar.implicitWidth + 24
         height: bar.implicitHeight + 20
-        radius: 14
+        radius: 0
         color: root.pillBg
         border.color: Theme.muted
         border.width: 1
@@ -49,9 +49,14 @@ Item {
                 spacing: 4
 
                 IconButton {
-                    glyph: "✚"
+                    glyph: "󰐕"
                     tip: "New · Ctrl+N"
                     actionName: "new"
+                }
+                IconButton {
+                    glyph: "󰷏"
+                    tip: "Open · Ctrl+O"
+                    actionName: "open"
                 }
             }
 
@@ -61,13 +66,13 @@ Item {
                 spacing: 4
 
                 IconButton {
-                    glyph: "↺"
+                    glyph: "󰕌"
                     tip: "Undo · Ctrl+Z"
                     actionName: "undo"
                     dimmed: !root.canUndo
                 }
                 IconButton {
-                    glyph: "↻"
+                    glyph: "󰑎"
                     tip: "Redo · Ctrl+Y"
                     actionName: "redo"
                     dimmed: !root.canRedo
@@ -81,15 +86,16 @@ Item {
 
                 Repeater {
                     model: [
-                        { tool: "select",    glyph: "⬚", tip: "Select · 1" },
-                        { tool: "rectangle", glyph: "▭", tip: "Rectangle · 2" },
-                        { tool: "ellipse",   glyph: "◯", tip: "Ellipse · 3" },
-                        { tool: "diamond",   glyph: "◇", tip: "Diamond · 4" },
-                        { tool: "arrow",     glyph: "➚", tip: "Arrow · 5" },
-                        { tool: "line",      glyph: "╱", tip: "Line · 6" },
-                        { tool: "draw",      glyph: "✎", tip: "Draw · 7" },
-                        { tool: "text",      glyph: "𝐀", tip: "Text · 8" },
-                        { tool: "eraser",    glyph: "⌫", tip: "Eraser · 9" }
+                        { tool: "select",    glyph: "󰀁", tip: "Select · 1" },
+                        { tool: "rectangle", glyph: "󰹟", tip: "Rectangle · 2" },
+                        { tool: "ellipse",   glyph: "󰝦", tip: "Ellipse · 3" },
+                        { tool: "diamond",   glyph: "󰜌", tip: "Diamond · 4" },
+                        { tool: "arrow",     glyph: "󰁜", tip: "Arrow · 5" },
+                        { tool: "line",      glyph: "󰕞", tip: "Line · 6" },
+                        { tool: "draw",      glyph: "󰲶", tip: "Draw · 7" },
+                        { tool: "text",      glyph: "󰗴", tip: "Text · 8" },
+                        { tool: "eraser",    glyph: "󰇾", tip: "Eraser · 9" },
+                        { tool: "sticky",    glyph: "󰏗", tip: "Sticky note · S" }
                     ]
 
                     delegate: IconButton {
@@ -131,13 +137,13 @@ Item {
                 spacing: 4
 
                 IconButton {
-                    glyph: "▦"
+                    glyph: "󰋁"
                     tip: "Grid · G"
                     actionName: "grid"
                     showCheckDot: root.showGrid
                 }
                 IconButton {
-                    glyph: "⊞"
+                    glyph: "󰁌"
                     tip: "Fit · ="
                     actionName: "fit"
                 }
@@ -149,21 +155,19 @@ Item {
                 spacing: 4
 
                 IconButton {
-                    id: saveBtn
-                    glyph: "⤓"
-                    tip: root.dirty ? "Save · Ctrl+S · unsaved changes"
-                                    : "Save · Ctrl+S"
-                    actionName: "save"
-                    pulse: root.dirty
+                    glyph: "󰈧"
+                    tip: "Export PNG · Ctrl+E"
+                    actionName: "exportPng"
                 }
                 IconButton {
-                    glyph: "⌂"
-                    tip: root.boardTitle.length > 0
-                         ? "Save to Obsidian · Ctrl+Shift+S — " + root.boardTitle
-                         : "Save to Obsidian · Ctrl+Shift+S"
-                    actionName: "vault"
-                    outlined: true
-                    obsidianMark: true
+                    glyph: "󰈨"
+                    tip: "Export SVG · Ctrl+Shift+E"
+                    actionName: "exportSvg"
+                }
+                IconButton {
+                    glyph: "󰅇"
+                    tip: "Paste image · Ctrl+V"
+                    actionName: "paste"
                 }
             }
         }
@@ -178,7 +182,7 @@ Item {
             y: root.height + 7
             width: tipText.implicitWidth + 18
             height: tipText.implicitHeight + 9
-            radius: 6
+            radius: 0
             color: root.withAlpha(Theme.darkerBackground, 0.98)
             border.color: Theme.muted
             border.width: 1
@@ -216,7 +220,7 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         width: 1
         height: 22
-        radius: 1
+        radius: 0
         color: Theme.muted
         opacity: 0.75
     }
@@ -230,66 +234,29 @@ Item {
         property string actionName: "" // set => emits action(name)
         property bool isActive: false
         property bool dimmed: false
-        property bool outlined: false  // accent border (vault)
-        property bool pulse: false     // dirty-save pulse ring
         property bool showCheckDot: false
-        property bool obsidianMark: false // draw the Obsidian gem instead of glyph
 
         width: 34
         height: 34
-        radius: 8
+        radius: 0
         color: ib.isActive ? Theme.accent
              : area.pressed ? Theme.selection
              : area.containsMouse ? Theme.lighterBackground
              : root.pillBg
         Behavior on color { ColorAnimation { duration: 120 } }
 
-        border.width: ib.outlined ? 1 : 0
-        border.color: Theme.accent
-        Behavior on border.color { ColorAnimation { duration: 120 } }
-
         opacity: ib.dimmed ? 0.35 : 1
         Behavior on opacity { NumberAnimation { duration: 120 } }
 
         Text {
             anchors.centerIn: parent
-            visible: !ib.obsidianMark
             text: ib.glyph
             color: ib.isActive ? Theme.background : Theme.foreground
             font.family: root.fontFamily
             font.pixelSize: 16
-        }
-
-        // Obsidian brand gem (fixed purples — logos don't follow themes)
-        Canvas {
-            anchors.centerIn: parent
-            visible: ib.obsidianMark
-            width: 20; height: 20
-            antialiasing: true
-
-            onPaint: {
-                var ctx = getContext("2d");
-                ctx.reset();
-
-                function poly(pts, fill) {
-                    ctx.beginPath();
-                    ctx.moveTo(pts[0][0], pts[0][1]);
-                    for (var i = 1; i < pts.length; i++)
-                        ctx.lineTo(pts[i][0], pts[i][1]);
-                    ctx.closePath();
-                    ctx.fillStyle = fill;
-                    ctx.fill();
-                }
-
-                // crystal silhouette
-                poly([[10,1],[16,6.5],[14.5,14],[9,19],[5,12.5],[6.5,4.5]], "#8b5cf6");
-                // dark left facet
-                poly([[10,1],[6.5,4.5],[5,12.5],[9,19],[9.6,10]], "#6d28d9");
-                // light top-right facet
-                poly([[10,1],[16,6.5],[12.5,9]], "#c4b5fd");
-                // mid facet seam
-                poly([[9.6,10],[14.5,14],[9,19]], "#7c3aed");
-            }
+            renderType: Text.NativeRendering
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
         }
 
         Rectangle { // grid checked-state underline dot
@@ -299,27 +266,8 @@ Item {
             anchors.bottomMargin: 3
             width: 4
             height: 4
-            radius: 2
+            radius: 0
             color: Theme.accent
-        }
-
-        Rectangle { // dirty-save pulse ring
-            id: ring
-            visible: ib.pulse
-            anchors.fill: parent
-            radius: 8
-            color: "transparent"
-            border.color: Theme.accent
-            border.width: 1
-            opacity: 0
-
-            SequentialAnimation {
-                running: ib.pulse
-                loops: Animation.Infinite
-                alwaysRunToEnd: true
-                NumberAnimation { target: ring; property: "opacity"; from: 0.85; to: 0.15; duration: 700; easing.type: Easing.InOutQuad }
-                NumberAnimation { target: ring; property: "opacity"; from: 0.15; to: 0.85; duration: 700; easing.type: Easing.InOutQuad }
-            }
         }
 
         MouseArea {
@@ -383,7 +331,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             width: 22
             height: 22
-            radius: 7
+            radius: 0
             color: sw.isTransparent ? Theme.lighterBackground : sw.chipColor
             border.color: hoverZone.containsMouse || hoverZone.pressed
                           ? Theme.accent : Theme.muted
@@ -398,7 +346,7 @@ Item {
                 anchors.centerIn: parent
                 width: 34
                 height: 2
-                radius: 1
+                radius: 0
                 rotation: -45
                 color: Theme.darkForeground
                 opacity: 0.9
@@ -433,7 +381,7 @@ Item {
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         background: Rectangle {
-            radius: 12
+            radius: 0
             color: root.withAlpha(Theme.darkerBackground, 0.97)
             border.color: Theme.muted
             border.width: 1
@@ -473,7 +421,7 @@ Item {
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: 28
                             height: 28
-                            radius: 7
+                            radius: 0
                             color: choiceColumn.modelData.name === "transparent"
                                    ? Theme.lighterBackground
                                    : choiceColumn.modelData.c
@@ -489,7 +437,7 @@ Item {
                                 anchors.centerIn: parent
                                 width: 40
                                 height: 2
-                                radius: 1
+                                radius: 0
                                 rotation: -45
                                 color: Theme.darkForeground
                                 opacity: 0.9

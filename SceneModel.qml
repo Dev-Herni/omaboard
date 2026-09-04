@@ -269,16 +269,20 @@ QtObject {
         var set = {};
         for (var i = 0; i < ids.length; i++)
             set[ids[i]] = true;
-        var els = root.elements;
-        for (var j = 0; j < els.length; j++) {
-            var el = els[j];
+        var now = Date.now();
+        var arr = root.elements.slice();
+        for (var j = 0; j < arr.length; j++) {
+            var el = arr[j];
             if (set[el.id]) {
-                el.x += dx;
-                el.y += dy;
-                el.version = (typeof el.version === "number" ? el.version : 0) + 1;
-                el.updated = Date.now();
+                var copy = JSON.parse(JSON.stringify(el));
+                copy.x += dx;
+                copy.y += dy;
+                copy.version = (typeof el.version === "number" ? el.version : 0) + 1;
+                copy.updated = now;
+                arr[j] = copy;
             }
         }
+        root.elements = arr;
         root.sceneChanged();
     }
 
@@ -298,9 +302,12 @@ QtObject {
                 np.push([el.points[i][0] * sx, el.points[i][1] * sy]);
             el.points = np;
         }
-        if (el.type === "text" && oh > 0) {
-            var fs = el.fontSize * (height / oh);
-            el.fontSize = Math.min(96, Math.max(8, Math.round(fs)));
+        if (el.type === "text") {
+            var tb = root._textBounds(el);
+            if (tb.height > 0) {
+                var fs = el.fontSize * (height / tb.height);
+                el.fontSize = Math.min(96, Math.max(8, Math.round(fs)));
+            }
         }
         el.version = (typeof el.version === "number" ? el.version : 0) + 1;
         el.updated = Date.now();

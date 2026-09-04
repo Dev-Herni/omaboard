@@ -1,11 +1,15 @@
 import QtQuick
 
-// Bottom-left corner bar: Open board + Shortcuts. Pure chrome — signals only.
+// Bottom-left corner bar: Save, Save to Obsidian, Help + Shortcuts. Pure chrome — signals only.
 Rectangle {
     id: root
 
-    signal openRequested()
+    property bool dirty: false
+    property string boardTitle: ""
+
     signal helpRequested()
+    signal saveRequested()
+    signal vaultRequested()
 
     readonly property string fontFamily: "JetBrainsMono Nerd Font"
     readonly property color pillBg: withAlpha(Theme.darkerBackground, 0.97)
@@ -16,7 +20,7 @@ Rectangle {
 
     implicitWidth: row.implicitWidth + 20
     implicitHeight: row.implicitHeight + 16
-    radius: 14
+    radius: 0
     color: pillBg
     border.color: Theme.muted
     border.width: 1
@@ -27,43 +31,50 @@ Rectangle {
         spacing: 10
 
         Rectangle {
-            id: openBtn
+            id: saveBtn
 
-            width: openRow.implicitWidth + 18
+            width: 34
             height: 34
-            radius: 8
-            color: openArea.pressed ? Theme.selection
-                 : openArea.containsMouse ? Theme.lighterBackground
+            radius: 0
+            color: saveArea.pressed ? Theme.selection
+                 : saveArea.containsMouse ? Theme.lighterBackground
                  : root.pillBg
             Behavior on color { ColorAnimation { duration: 120 } }
 
-            Row {
-                id: openRow
+            Text {
                 anchors.centerIn: parent
-                spacing: 7
+                text: "󰠘"
+                color: Theme.foreground
+                font.family: root.fontFamily
+                font.pixelSize: 15
+                renderType: Text.NativeRendering
+            }
 
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "❏"
-                    color: Theme.foreground
-                    font.family: root.fontFamily
-                    font.pixelSize: 15
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Open"
-                    color: Theme.foreground
-                    font.family: root.fontFamily
-                    font.pixelSize: 12
+            Rectangle { // unsaved-changes pulse ring
+                id: pulseRing
+                visible: root.dirty
+                anchors.fill: parent
+                radius: 0
+                color: "transparent"
+                border.color: Theme.accent
+                border.width: 1
+                opacity: 0
+
+                SequentialAnimation {
+                    running: pulseRing.visible
+                    loops: Animation.Infinite
+                    alwaysRunToEnd: true
+                    NumberAnimation { target: pulseRing; property: "opacity"; from: 0.85; to: 0.15; duration: 700; easing.type: Easing.InOutQuad }
+                    NumberAnimation { target: pulseRing; property: "opacity"; from: 0.15; to: 0.85; duration: 700; easing.type: Easing.InOutQuad }
                 }
             }
 
             MouseArea {
-                id: openArea
+                id: saveArea
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: root.openRequested()
+                onClicked: root.saveRequested()
             }
         }
 
@@ -71,7 +82,45 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             width: 1
             height: 22
-            radius: 1
+            radius: 0
+            color: Theme.muted
+            opacity: 0.75
+        }
+
+        Rectangle {
+            id: vaultBtn
+
+            width: 34
+            height: 34
+            radius: 0
+            color: vaultArea.pressed ? Theme.selection
+                 : vaultArea.containsMouse ? Theme.lighterBackground
+                 : root.pillBg
+            Behavior on color { ColorAnimation { duration: 120 } }
+
+            Text {
+                anchors.centerIn: parent
+                text: ""
+                color: Theme.foreground
+                font.family: root.fontFamily
+                font.pixelSize: 15
+                renderType: Text.NativeRendering
+            }
+
+            MouseArea {
+                id: vaultArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.vaultRequested()
+            }
+        }
+
+        Rectangle {
+            anchors.verticalCenter: parent.verticalCenter
+            width: 1
+            height: 22
+            radius: 0
             color: Theme.muted
             opacity: 0.75
         }
@@ -81,7 +130,7 @@ Rectangle {
 
             width: 34
             height: 34
-            radius: 8
+            radius: 0
             color: helpArea.pressed ? Theme.selection
                  : helpArea.containsMouse ? Theme.lighterBackground
                  : root.pillBg
@@ -89,10 +138,11 @@ Rectangle {
 
             Text {
                 anchors.centerIn: parent
-                text: "?"
+                text: "󰘥"
                 color: Theme.foreground
                 font.family: root.fontFamily
                 font.pixelSize: 15
+                renderType: Text.NativeRendering
             }
 
             MouseArea {

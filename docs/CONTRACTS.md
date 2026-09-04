@@ -119,13 +119,19 @@ signal toolPicked(string tool)
 signal strokePicked(color c) / fillPicked(color c)
 signal action(string name)   // "new"|"open"|"save"|"vault"|"undo"|"redo"|"grid"|"fit"|"help"
 ```
-Icons = Unicode geometric glyphs (no font deps): ▭ ◯ ◇ ╱ ➚ ✎ 𝐀 ▩ ⌫ etc. Swatches from Theme.palette popover. Tooltips w/ shortcut hints.
+Icons = Unicode geometric glyphs (no font deps): ▭ ◯ ◇ ╱ ➚ ✎ 𝐀 ▩ ⌫ etc. First cluster is New + Open. Swatches from Theme.palette popover. Tooltips w/ shortcut hints.
 
 ## shell.qml owns
 FloatingWindow (title `● title — OmaBoard` dirty dot, app-id org.omarchy.omaboard), SceneModel{id:model}, BoardCanvas{id:canvas}, Toolbar anchored top-center, Toast overlay, Help overlay (? key), board picker panel (lists localDir + vaultDir .md files), Shortcuts, save/load logic, config (~/.config/omaboard/config.json → {vaultDir, localDir}; defaults: `~/OxHenri Vault/Whiteboards`, `~/Documents/Whiteboards`), autosave draft timer (30s → ~/.cache/omaboard/draft.md, restore prompt on launch).
 
-Shortcuts: 1..9 tools · Ctrl+S save-in-place · Ctrl+Shift+S vault-save · Ctrl+O open picker · Ctrl+N new · Ctrl+Z/Y undo redo · Del delete · Ctrl+D duplicate · Ctrl+] z-forward · Ctrl+[ z-back · +/- zoom · = fit · G grid · ? help · Esc deselect/tool-reset.
+Shortcuts: 1..9 tools · Ctrl+S save-in-place · Ctrl+Shift+S vault-save · Ctrl+O open picker · Ctrl+N new · Ctrl+Z/Y/Ctrl+Shift+Z undo redo · Del delete · Ctrl+D duplicate · Ctrl+] z-forward · Ctrl+[ z-back · +/- zoom · = fit · G grid · ? help · Esc deselect/tool-reset.
+
+Launcher (`bin/omaboard`): if an instance is already running, `qs ipc -p <root> call omaboard …` (targets: `focus`, `newBoard`, `picker`, `openFile(path)`, `ping`) and exit. Otherwise launch with `OMABOARD_ACTION` / `OMABOARD_PATH`. Flags: `--new`, `--picker`, `--open PATH`, `--status`.
+
+IpcHandler `{ target: "omaboard" }` lives on ShellRoot. `focusWindow()` raises the FloatingWindow and `hyprctl dispatch focuswindow title:OmaBoard`.
+
+Draft restore window is 7 days (`~/.cache/omaboard/draft.md`).
 
 ## Verification every agent must run
-`timeout 12 qs -p ~/projects/omarchy/omaboard 2>&1 | grep -iE "error|warning|cannot|failed"` → must be empty (or explain). Window may flash on desktop — fine. Also `qmllint *.qml` — fix errors, ignore style warnings.
+`timeout 12 qs -p ~/Projects/Omarchy/omaboard 2>&1 | grep -iE "error|warning|cannot|failed"` → must be empty (or explain). Window may flash on desktop — fine. Also `qmllint *.qml` — fix errors, ignore style warnings.
 NO git commands by agents. Do not edit files outside your scope.

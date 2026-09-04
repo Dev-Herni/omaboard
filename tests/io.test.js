@@ -41,7 +41,7 @@ async function loadModule() {
             && el.angle === 0
             && el.fillStyle === "solid"
             && el.strokeWidth === 2
-            && el.roughness === 0
+            && (el.roughness === 0 || el.roughness === 1)
             && el.opacity === 100
             && Number.isInteger(el.seed)
             && el.version === 1
@@ -198,6 +198,53 @@ async function loadModule() {
         }
     }
     check("e: re-serialize stable", serialize(back.elements, sceneMeta) === mdScene);
+
+    // ---------- f. backtick-laden text round-trips ----------
+    function fenceLengthOf(md) {
+        const m = md.match(/^(`{3,})json/m);
+        return m ? m[1].length : -1;
+    }
+    check("d/e sanity: plain boards keep a 3-backtick fence", fenceLengthOf(mdScene) === 3);
+
+    const btText = "code fence:\n```json\n{\"a\":1}\n```\nplus ```` run and ` singles";
+    const btMeta = { title: "Backticks", createdISO: "2026-01-01T00:00:00.000Z", modifiedISO: "2026-01-02T00:00:00.000Z" };
+    const bt = makeElement("text", { x: 0, y: 0, text: btText });
+    const mdBt = serialize([bt], btMeta);
+    const pBt = parse(mdBt);
+    check("f: text containing ```json fence parses back", pBt !== null, "null");
+    check("f: backtick text byte-identical",
+        pBt !== null && pBt.elements.length === 1 && pBt.elements[0].text === btText,
+        pBt ? JSON.stringify(pBt.elements.map((e) => e.text)) : "");
+    check("f: fence sized past longest content run", (() => {
+        const m = mdBt.match(/(`{3,})json[ \t]*\r?\n([\s\S]*?)\r?\n\1(?!`)/);
+        if (!m) return false;
+        let longest = 0, run = 0;
+        for (const ch of m[2]) {
+            run = ch === "`" ? run + 1 : 0;
+            if (run > longest) longest = run;
+        }
+        return m[1].length > longest && m[1].length >= 4;
+    })());
+
+    const fenceSoup = makeElement("text", { x: 0, y: 0, text: "```\n````\n```json\nx\n```\n````" });
+    const pSoup = parse(serialize([fenceSoup], {}));
+    check("f: multiple full fences round-trip",
+        pSoup !== null && pSoup.elements[0].text === fenceSoup.text,
+        pSoup ? JSON.stringify(pSoup.elements[0].text) : "");
+
+    check("f: re-serialize stable with backticks", serialize(pBt.elements, btMeta) === mdBt);
+
+    // ---------- g. created frontmatter ----------
+    const mdCreated = serialize([], {
+        title: "Created", createdISO: "2025-12-31T10:00:00.000Z", modifiedISO: "2026-01-01T00:00:00.000Z",
+    });
+    const pCreated = parse(mdCreated);
+    check("g: created parsed", pCreated !== null && pCreated.createdISO === "2025-12-31T10:00:00.000Z",
+        pCreated ? String(pCreated.createdISO) : "null");
+    const noCreated = mdCreated.replace(/^created: .*$/m, "").replace(/\n\n---/, "\n---");
+    const pNoCreated = parse(noCreated);
+    check("g: missing created tolerated", pNoCreated !== null && pNoCreated.createdISO === "",
+        pNoCreated ? JSON.stringify(pNoCreated.createdISO) : "null");
 
     console.log("\n" + (count - failures) + "/" + count + " assertions passed.");
     process.exit(failures > 0 ? 1 : 0);

@@ -1,13 +1,25 @@
-# Omarchy bar widget
+# OmaBoard bar widget
 
-Bar button that launches OmaBoard (shown as nf-md-vector_square glyph).
+Bar button for [OmaBoard](https://github.com/omacom-io/omaboard). The glyph is
+a drawn whiteboard (board + ink), not a nerd-font presentation stand.
 
-Install:
+| Click | Action |
+| ----- | ------ |
+| Left | Recents — new board, search, open a saved board |
+| Middle | New board |
+| Right | Open the app |
+
+`N` starts a new board, `/` jumps to search. Recents is one row per board
+(newest file wins if the same name exists in both vault and local).
+
+## Install
 
 ```bash
 cp -r integrations/omarchy-bar ~/.config/omarchy/plugins/oxhenri.omaboard
 ```
 
-Then enable it: Omarchy menu > Settings > Bar (add "OmaBoard"), or add
-`{"id": "oxhenri.omaboard"}` to the desired section of
-`~/.config/omarchy/shell.json` -> `bar.layout`. Hot-reloads instantly.
+Then add `{"id": "oxhenri.omaboard"}` to a `bar.layout` section in
+`~/.config/omarchy/shell.json`. Saved plugin files hot-reload.
+
+The `omaboard` launcher must be on `PATH` (see the app README). Repeat
+clicks focus the existing window instead of spawning another.

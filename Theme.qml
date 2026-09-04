@@ -83,10 +83,17 @@ Singleton {
         emitIfChanged();
     }
 
+    // Many custom Omarchy themes (and terminal-flavoured themes like dos-moos)
+    // ship the ANSI color0-15 schema + selection_background instead of the
+    // canonical named keys. Apply the canonical keys when present, then fall
+    // back to the ANSI palette so any theme maps to a usable tuned palette.
     function applyColors(text) {
         if (typeof text !== "string" || text.length === 0)
             return;
         var lines = text.split("\n");
+        var ansi = {};
+        var seen = {};
+        var selectionBg = "";
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i];
             var trimmed = line.trim();
@@ -106,9 +113,47 @@ Singleton {
             }
             if (!/^#[0-9a-fA-F]{3,8}$/.test(value))
                 continue;
+            if (key === "selection_background")
+                selectionBg = value;
+            if (/^color(1[0-5]|[0-9])$/.test(key))
+                ansi[key] = value;
             var prop = snakeToCamel(key);
-            if (root._knownColors.indexOf(prop) !== -1)
+            if (root._knownColors.indexOf(prop) !== -1) {
                 root[prop] = value;
+                seen[prop] = true;
+            }
+        }
+        function has(p) { return !!seen[p]; }
+        function fb(prop, idxs, fallback) {
+            if (has(prop))
+                return;
+            var picked = "";
+            for (var k = 0; k < idxs.length; k++) {
+                var v = ansi["color" + idxs[k]];
+                if (v) {
+                    picked = v;
+                    break;
+                }
+            }
+            root[prop] = picked || fallback;
+        }
+        fb("red",            [1,  9],  root.red);
+        fb("green",          [2, 10],  root.green);
+        fb("yellow",         [3, 11],  root.yellow);
+        fb("blue",           [4, 12],  root.blue);
+        fb("magenta",        [5, 13],  root.magenta);
+        fb("cyan",           [6, 14],  root.cyan);
+        fb("orange",         [9,  3],  root.orange);
+        fb("brown",          [3,  11], root.brown);
+        fb("muted",          [8],      root.muted);
+        fb("darkForeground", [8],      root.darkForeground);
+        fb("lightForeground",[7, 15],  root.lightForeground);
+        fb("brightForeground",[15, 7], root.brightForeground);
+        if (!has("selection")) {
+            if (selectionBg)
+                root.selection = selectionBg;
+            else if (ansi["color8"])
+                root.selection = ansi["color8"];
         }
         emitIfChanged();
     }
@@ -128,6 +173,7 @@ Singleton {
     }
 
     property string _lastSignature: ""
+    property bool _themeEverLoaded: false
 
     // Emit only when the effective palette actually changed, so the 1500ms
     // poll does not spam consumers with no-op re-reads.
@@ -169,7 +215,7 @@ Singleton {
         watchChanges: true
         printErrors: false
 
-        onLoaded: root.applyName(nameView.text())
+        onLoaded: { root._themeEverLoaded = true; root.applyName(nameView.text()); }
         onFileChanged: root.refresh()
     }
 
@@ -180,7 +226,7 @@ Singleton {
         watchChanges: true
         printErrors: false
 
-        onLoaded: root.applyColors(colorsView.text())
+        onLoaded: { root._themeEverLoaded = true; root.applyColors(colorsView.text()); }
         onFileChanged: root.refresh()
     }
 
@@ -189,6 +235,10 @@ Singleton {
         running: true
         repeat: true
         triggeredOnStart: false
-        onTriggered: root.refresh()
+        onTriggered: {
+            if (!root._themeEverLoaded)
+                return;
+            root.refresh();
+        }
     }
 }
